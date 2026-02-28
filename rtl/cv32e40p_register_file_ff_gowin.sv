@@ -69,18 +69,18 @@ module cv32e40p_register_file #(
   localparam NUM_TOT_WORDS = FPU ? (ZFINX ? NUM_WORDS : NUM_WORDS + NUM_FP_WORDS) : NUM_WORDS;
 
   // integer register file
-  logic [    NUM_WORDS-1:0][DATA_WIDTH-1:0] mem;
+  // logic [    NUM_WORDS-1:0][DATA_WIDTH-1:0] mem;
 
   // fp register file
-  logic [ NUM_FP_WORDS-1:0][DATA_WIDTH-1:0] mem_fp;
+  // logic [ NUM_FP_WORDS-1:0][DATA_WIDTH-1:0] mem_fp;
 
   // masked write addresses
-  logic [   ADDR_WIDTH-1:0]                 waddr_a;
-  logic [   ADDR_WIDTH-1:0]                 waddr_b;
+  // logic [   ADDR_WIDTH-1:0]                 waddr_a;
+  // logic [   ADDR_WIDTH-1:0]                 waddr_b;
 
   // write enable signals for all registers
-  logic [NUM_TOT_WORDS-1:0]                 we_a_dec;
-  logic [NUM_TOT_WORDS-1:0]                 we_b_dec;
+  // logic [NUM_TOT_WORDS-1:0]                 we_a_dec;
+  // logic [NUM_TOT_WORDS-1:0]                 we_b_dec;
 
 
  // 1. Multiplex the Write Ports
@@ -105,8 +105,8 @@ module cv32e40p_register_file #(
 
   // 3. Instantiate the 3 SSRAM blocks (One for each read port)
   shadow_ram_model_SDP #(
-      .ADDR_WIDTH(ADDR_WIDTH),
-      .DATA_WIDTH(DATA_WIDTH)
+      // .ADDR_WIDTH(ADDR_WIDTH),
+      // .DATA_WIDTH(DATA_WIDTH)
   ) ram_port_a (
       .clk  (clk),
       .rad  (raddr_a_i),
@@ -117,8 +117,8 @@ module cv32e40p_register_file #(
   );
 
   shadow_ram_model_SDP #(
-      .ADDR_WIDTH(ADDR_WIDTH),
-      .DATA_WIDTH(DATA_WIDTH)
+      // .ADDR_WIDTH(ADDR_WIDTH),
+      // .DATA_WIDTH(DATA_WIDTH)
   ) ram_port_b (
       .clk  (clk),
       .rad  (raddr_b_i),
@@ -129,8 +129,8 @@ module cv32e40p_register_file #(
   );
 
   shadow_ram_model_SDP #(
-      .ADDR_WIDTH(ADDR_WIDTH),
-      .DATA_WIDTH(DATA_WIDTH)
+      // .ADDR_WIDTH(ADDR_WIDTH),
+      // .DATA_WIDTH(DATA_WIDTH)
   ) ram_port_c (
       .clk  (clk),
       .rad  (raddr_c_i),
@@ -142,9 +142,9 @@ module cv32e40p_register_file #(
 
   // 4. Handle R0 Reads
   // If the core tries to read x0, force the output to 0, ignoring the RAM data.
-  assign rdata_a_o = (raddr_a_i == 0) ? 32'b0 : ram_out_a;
-  assign rdata_b_o = (raddr_b_i == 0) ? 32'b0 : ram_out_b;
-  assign rdata_c_o = (raddr_c_i == 0) ? 32'b0 : ram_out_c;
+    assign rdata_a_o = (raddr_a_i == 0) ? 32'b0 : ram_out_a;
+    assign rdata_b_o = (raddr_b_i == 0) ? 32'b0 : ram_out_b;
+    assign rdata_c_o = (raddr_c_i == 0) ? 32'b0 : ram_out_c;
 
   //-----------------------------------------------------------------------------
   //-- READ : Read address decoder RAD
@@ -161,58 +161,58 @@ module cv32e40p_register_file #(
 //  assign waddr_a   = waddr_a_i;
 //  assign waddr_b   = waddr_b_i;
 
-  genvar gidx;
-  generate
-//    for (gidx = 0; gidx < NUM_TOT_WORDS; gidx++) begin : gen_we_decoder
-//      assign we_a_dec[gidx] = (waddr_a == gidx) ? we_a_i : 1'b0;
-//      assign we_b_dec[gidx] = (waddr_b == gidx) ? we_b_i : 1'b0;
-//    end
-  endgenerate
+  // genvar gidx;
+  // generate
+  //  for (gidx = 0; gidx < NUM_TOT_WORDS; gidx++) begin : gen_we_decoder
+  //    assign we_a_dec[gidx] = (waddr_a == gidx) ? we_a_i : 1'b0;
+  //    assign we_b_dec[gidx] = (waddr_b == gidx) ? we_b_i : 1'b0;
+  //  end
+  // endgenerate
 
-  genvar i, l;
-  generate
+  // genvar i, l;
+  // generate
 
-    //-----------------------------------------------------------------------------
-    //-- WRITE : Write operation
-    //-----------------------------------------------------------------------------
-    // R0 is nil
-    // always_ff @(posedge clk or negedge rst_n) begin
-    //   if (~rst_n) begin
-    //     // R0 is nil
-    //     mem[0] <= 32'b0;
-    //   end else begin
-    //     // R0 is nil
-    //     mem[0] <= 32'b0;
-    //   end
-    // end
+  //   // -----------------------------------------------------------------------------
+  //   // -- WRITE : Write operation
+  //   // -----------------------------------------------------------------------------
+  //   // R0 is nil
+  //   always_ff @(posedge clk or negedge rst_n) begin
+  //     if (~rst_n) begin
+  //       // R0 is nil
+  //       mem[0] <= 32'b0;
+  //     end else begin
+  //       // R0 is nil
+  //       mem[0] <= 32'b0;
+  //     end
+  //   end
 
-    // loop from 1 to NUM_WORDS-1 as R0 is nil
-    for (i = 1; i < NUM_WORDS; i++) begin : gen_rf
+  //   // loop from 1 to NUM_WORDS-1 as R0 is nil
+  //   for (i = 1; i < NUM_WORDS; i++) begin : gen_rf
 
-      // always_ff @(posedge clk, negedge rst_n) begin : register_write_behavioral
-      //   if (rst_n == 1'b0) begin
-      //     mem[i] <= 32'b0;
-      //   end else begin
-      //     if (we_b_dec[i] == 1'b1) mem[i] <= wdata_b_i;
-      //     else if (we_a_dec[i] == 1'b1) mem[i] <= wdata_a_i;
-      //   end
-      // end
+  //     always_ff @(posedge clk, negedge rst_n) begin : register_write_behavioral
+  //       if (rst_n == 1'b0) begin
+  //         mem[i] <= 32'b0;
+  //       end else begin
+  //         if (we_b_dec[i] == 1'b1) mem[i] <= wdata_b_i;
+  //         else if (we_a_dec[i] == 1'b1) mem[i] <= wdata_a_i;
+  //       end
+  //     end
 
-    end
+  //   end
 
-    // if (FPU == 1 && ZFINX == 0) begin : gen_mem_fp_write
-    //   // Floating point registers
-    //   for (l = 0; l < NUM_FP_WORDS; l++) begin
-    //     always_ff @(posedge clk, negedge rst_n) begin : fp_regs
-    //       if (rst_n == 1'b0) mem_fp[l] <= '0;
-    //       else if (we_b_dec[l+NUM_WORDS] == 1'b1) mem_fp[l] <= wdata_b_i;
-    //       else if (we_a_dec[l+NUM_WORDS] == 1'b1) mem_fp[l] <= wdata_a_i;
-    //     end
-    //   end
-    // end else begin : gen_no_mem_fp_write
-    //   assign mem_fp = 'b0;
-    // end
+  //   if (FPU == 1 && ZFINX == 0) begin : gen_mem_fp_write
+  //     // Floating point registers
+  //     for (l = 0; l < NUM_FP_WORDS; l++) begin
+  //       always_ff @(posedge clk, negedge rst_n) begin : fp_regs
+  //         if (rst_n == 1'b0) mem_fp[l] <= '0;
+  //         else if (we_b_dec[l+NUM_WORDS] == 1'b1) mem_fp[l] <= wdata_b_i;
+  //         else if (we_a_dec[l+NUM_WORDS] == 1'b1) mem_fp[l] <= wdata_a_i;
+  //       end
+  //     end
+  //   end else begin : gen_no_mem_fp_write
+  //     assign mem_fp = 'b0;
+  //   end
 
-  endgenerate
+  // endgenerate
 
 endmodule
