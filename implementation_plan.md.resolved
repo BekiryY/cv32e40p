@@ -1,0 +1,138 @@
+# ID Stage Pipeline Register LUT Reduction Plan
+
+## Root Cause (Why 1.8k LUTs in the ID Stage Body)
+
+The `ID_EX_PIPE_REGISTERS` always_ff block (lines 1426–1632) has this structure:
+
+```
+if (!rst_n)                →  reset everything
+else if (data_misaligned_i) →  update 5 signals  ← only needs 5 FFs!
+else if (mult_multicycle_i) →  update 1 signal   ← only needs 1 FF!
+else
+  if (id_valid_o)          →  update everything (with nested guards)
+  else if (ex_ready_i)     →  zero out enables
+  else if (csr_access_ex_o)→  zero regfile_alu_we
+```
+
+In Gowin's LUT4+FF architecture, every FF's **D-input** requires a physical mux. Since all four top-level branches are in one block, even signals that are NOT touched by `data_misaligned_i` still need a "keep old value" feedback mux for that branch, adding mux levels to every single FF.
+
+**The math:** ~500 FFs × average 2 extra mux levels × ~0.5 LUTs/level = **~500 extra LUTs** just from the multi-branch structure. Plus inner guards like `if (alu_en)`, `if (mult_int_en)`, `if (data_req_id)` each add another mux level = another ~400 LUTs.
+
+---
+
+## Proposed Fix: Restructure `ID_EX_PIPE_REGISTERS`
+
+### Change 1 — Extract misaligned path (touches only 5 signals)
+
+Pull the `data_misaligned_i` case into its own tiny block:
+
+```systemverilog
+// SEPARATE: Misaligned second cycle — only 5 signals
+always_ff @(posedge clk or negedge rst_n) begin : MISALIGNED_PIPE
+  if (!rst_n) begin
+    alu_operand_b_ex_o   <= '0;
+    regfile_alu_we_ex_o  <= 1'b0;
+    prepost_useincr_ex_o <= 1'b0;
+    data_misaligned_ex_o <= 1'b0;
+  end else if (data_misaligned_i && ex_ready_i) begin
+    if (prepost_useincr_ex_o) alu_operand_a_ex_o <= operand_a_fw_id;
+    alu_operand_b_ex_o   <= 32'h4;
+    regfile_alu_we_ex_o  <= 1'b0;
+    prepost_useincr_ex_o <= 1'b1;
+    data_misaligned_ex_o <= 1'b1;
+  end else if (!data_misaligned_i) begin
+    // Fall through to main block handling
+    // (main block handles this)
+  end
+end
+```
+
+> [!IMPORTANT]
+> `alu_operand_a_ex_o` is shared between misaligned and main path. We need to keep these in sync carefully. See the full restructured version below.
+
+### Change 2 — Extract mult_multicycle path (touches 1 signal)
+
+```systemverilog
+always_ff @(posedge clk or negedge rst_n) begin : MULTICYCLE_PIPE
+  if (!rst_n)
+    mult_operand_c_ex_o <= '0;
+  else if (!data_misaligned_i && mult_multicycle_i)
+    mult_operand_c_ex_o <= operand_c_fw_id;
+  else if (!data_misaligned_i && !mult_multicycle_i && id_valid_o && mult_int_en)
+    mult_operand_c_ex_o <= alu_operand_c;
+end
+```
+
+### Change 3 — Remove inner guards within `id_valid_o` path
+
+The guards `if (alu_en)`, `if (mult_int_en)`, `if (data_req_id)`, `if (regfile_we_id)`, `if (regfile_alu_we_id)`, `if (apu_en)` inside `id_valid_o` **add mux levels but serve no functional purpose on FPGA** (they only suppress toggling for power savings that don't apply to FPGA). Remove them:
+
+```diff
+  if (id_valid_o) begin
+    alu_en_ex_o        <= alu_en;
+-   if (alu_en) begin
+      alu_operator_ex_o  <= alu_operator;
+      alu_operand_a_ex_o <= alu_operand_a;
+      alu_operand_b_ex_o <= alu_operand_b;  // simplified (clip case merged into comb mux)
+      alu_operand_c_ex_o <= alu_operand_c;
+      ...
+-   end
+    mult_en_ex_o       <= mult_en;
+-   if (mult_int_en) begin
+      mult_operator_ex_o <= mult_operator;
+      ...
+-   end
+    regfile_we_ex_o    <= regfile_we_id;
+-   if (regfile_we_id) begin
+      regfile_waddr_ex_o <= regfile_waddr_id;
+-   end
+    ...
+  end
+```
+
+This removes one full mux level from ~300 bits, saving ~300–400 LUTs.
+
+### Change 4 (minor) — Move `ALU_CLIP` fixup to combinational
+
+Line 1519 has a special case inside the FF block:
+```systemverilog
+if (alu_op_b_mux_sel == OP_B_REGB_OR_FWD && (alu_operator == ALU_CLIP || alu_operator == ALU_CLIPU))
+  alu_operand_b_ex_o <= {1'b0, alu_operand_b[30:0]};
+else
+  alu_operand_b_ex_o <= alu_operand_b;
+```
+Move this to a combinational `always_comb` that computes `alu_operand_b_to_reg`, then the FF just captures that. This simplifies the FF's D-input mux.
+
+---
+
+## Estimated LUT Savings
+
+| Change | Mechanism | Estimated Savings |
+|--------|-----------|------------------|
+| Extract misaligned path | Removes 1 mux level from ~500 FFs | ~300–400 LUTs |
+| Remove inner `if (alu_en)` etc guards | Removes 1 mux level from ~300 FFs | ~200–300 LUTs |
+| Extract mult_multicycle | Simplifies mult_operand_c path | ~20–40 LUTs |
+| Move clip fixup to comb | Removes fork in FF's D mux | ~32 LUTs |
+| **Total** | | **~550–770 LUTs** |
+
+Target: bring id_stage body from 1.8k to ~1.0–1.2k LUTs.
+
+---
+
+## [MODIFY] [cv32e40p_id_stage_gowin.sv](file:///c:/Users/BEK/repos/cv32e40p/rtl/cv32e40p_id_stage_gowin.sv)
+
+The main `ID_EX_PIPE_REGISTERS` always_ff block will be rewritten as 3 separate blocks + 1 combinational helper.
+
+> [!WARNING]  
+> **Correctness risk**: `alu_operand_a_ex_o` and `alu_operand_b_ex_o` are written in BOTH the misaligned path AND the main path. These need careful handling to avoid driving conflicts. The restructured code must ensure only one always_ff block drives each signal.
+
+The safe approach: keep `alu_operand_a`, `alu_operand_b`, `prepost_useincr`, `regfile_alu_we`, `data_misaligned_ex_o` in one block that handles both misaligned and normal paths (but no longer pays for `mult_multicycle_i`). Everything else (the 90% of signals unaffected by misaligned) moves to a cleaner main block.
+
+---
+
+## Verification Plan
+
+1. Synthesize current code → record LUT count for `cv32e40p_id_stage`
+2. Apply changes → re-synthesize
+3. Compare LUT counts (expect ~500–700 reduction in body LUTs)
+4. Run on FPGA and verify functional correctness (especially misaligned memory accesses)
