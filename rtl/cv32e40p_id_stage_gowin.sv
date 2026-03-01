@@ -17,6 +17,7 @@
 //                 Sven Stucki - svstucki@student.ethz.ch                     //
 //                 Michael Gautschi - gautschi@iis.ee.ethz.ch                 //
 //                 Davide Schiavone - pschiavo@iis.ee.ethz.ch                 //
+//                 Bekir Yufka - bekiryufka@bekiryufka.net                    //
 //                                                                            //
 // Design Name:    Instruction Decode Stage                                   //
 // Project Name:   RI5CY                                                      //
@@ -24,6 +25,9 @@
 //                                                                            //
 // Description:    Decode stage of the core. It decodes the instructions      //
 //                 and hosts the register file.                               //
+//                                                                            //
+// ID_stage FPGA optimization: Power saving control blocks are disabled for   //
+//                              FPGA implementation.                          //
 //                                                                            //
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1511,16 +1515,19 @@ module cv32e40p_id_stage
     end else begin
       // normal pipeline unstall case
 
+
+
+
       if (id_valid_o) begin  // unstall the whole pipeline
         alu_en_ex_o <= alu_en;
-        if (alu_en) begin
+        //if (alu_en) begin
           alu_operator_ex_o  <= alu_operator;
           alu_operand_a_ex_o <= alu_operand_a;
           if (alu_op_b_mux_sel == OP_B_REGB_OR_FWD && (alu_operator == ALU_CLIP || alu_operator == ALU_CLIPU)) begin
             alu_operand_b_ex_o <= {1'b0, alu_operand_b[30:0]};
-          end else begin
+          // end else begin
             alu_operand_b_ex_o <= alu_operand_b;
-          end
+          // end
           alu_operand_c_ex_o  <= alu_operand_c;
           bmask_a_ex_o        <= bmask_a_id;
           bmask_b_ex_o        <= bmask_b_id;
@@ -1529,10 +1536,10 @@ module cv32e40p_id_stage
           alu_is_clpx_ex_o    <= is_clpx;
           alu_clpx_shift_ex_o <= instr[14:13];
           alu_is_subrot_ex_o  <= is_subrot;
-        end
+        //end
 
         mult_en_ex_o <= mult_en;
-        if (mult_int_en) begin
+        // if (mult_int_en) begin
           mult_operator_ex_o    <= mult_operator;
           mult_sel_subword_ex_o <= mult_sel_subword;
           mult_signed_mode_ex_o <= mult_signed_mode;
@@ -1540,8 +1547,8 @@ module cv32e40p_id_stage
           mult_operand_b_ex_o   <= alu_operand_b;
           mult_operand_c_ex_o   <= alu_operand_c;
           mult_imm_ex_o         <= mult_imm_id;
-        end
-        if (mult_dot_en) begin
+        // end
+        // if (mult_dot_en) begin
           mult_operator_ex_o   <= mult_operator;
           mult_dot_signed_ex_o <= mult_dot_signed;
           mult_dot_op_a_ex_o   <= alu_operand_a;
@@ -1550,17 +1557,21 @@ module cv32e40p_id_stage
           mult_is_clpx_ex_o    <= is_clpx;
           mult_clpx_shift_ex_o <= instr[14:13];
           mult_clpx_img_ex_o   <= instr[25];
-        end
+        //end
 
         // APU pipeline
         apu_en_ex_o <= apu_en;
-        if (apu_en) begin
+        //if (apu_en) begin
           apu_op_ex_o       <= apu_op;
           apu_lat_ex_o      <= apu_lat;
           apu_operands_ex_o <= apu_operands;
           apu_flags_ex_o    <= apu_flags;
           apu_waddr_ex_o    <= apu_waddr;
-        end
+        //end
+
+////////////////////////////////////////CHANGED NOT TESTED
+
+
 
         regfile_we_ex_o <= regfile_we_id;
         if (regfile_we_id) begin

@@ -8,24 +8,32 @@
 // CONDITIONS OF ANY KIND, either express or implied. See the License for the
 // specific language governing permissions and limitations under the License.
 
-////////////////////////////////////////////////////////////////////////////////
-// Engineer:       Francesco Conti - f.conti@unibo.it                         //
-//                                                                            //
-// Additional contributions by:                                               //
-//                 Michael Gautschi - gautschi@iis.ee.ethz.ch                 //
-//                 Davide Schiavone - pschiavo@iis.ee.ethz.ch                 //
-//                                                                            //
-// Design Name:    RISC-V register file                                       //
-// Project Name:   RI5CY                                                      //
-// Language:       SystemVerilog                                              //
-//                                                                            //
-// Description:    Register file with 31x 32 bit wide registers. Register 0   //
-//                 is fixed to 0. This register file is based on flip-flops.  //
-//                 Also supports the fp-register file now if FPU=1            //
-//                 If ZFINX is 1, floating point operations take values       //
-//                 from the X register file                                   //
-//                                                                            //
-////////////////////////////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////////////////////////////
+// Engineer:       Francesco Conti - f.conti@unibo.it                           //
+//                                                                              //
+// Additional contributions by:                                                 //
+//                 Michael Gautschi - gautschi@iis.ee.ethz.ch                   //
+//                 Davide Schiavone - pschiavo@iis.ee.ethz.ch                   //
+//                 Bekir Yufka - bekiryufka@bekiryufka.net                      //
+//                                                                              //
+// Design Name:    RISC-V register file                                         //
+// Project Name:   RI5CY                                                        //
+// Language:       SystemVerilog                                                //
+//                                                                              //
+// Description:    Register file with 31x 32 bit wide registers. Register 0     //
+//                 is fixed to 0. This register file is based on flip-flops.    //
+//                 Also supports the fp-register file now if FPU=1              //
+//                 If ZFINX is 1, floating point operations take values         //
+//                 from the X register file                                     //
+//                                                                              //
+// Register file FPGA optimization: independent 3 memory blocks are fused       //
+//        together for saving resources by utilizing sram/ssram on fpga boards. //
+//                                                                              //
+// Supported platforms: Gowin, Xilinx/Vivado                                    //
+//                                                                              //
+// Warning: if FPU != 0 or COREV_PULP != 0, this optimization is not supported  //
+//                                                                              //
+//////////////////////////////////////////////////////////////////////////////////
 
 module cv32e40p_register_file #(
     parameter ADDR_WIDTH = 5,
